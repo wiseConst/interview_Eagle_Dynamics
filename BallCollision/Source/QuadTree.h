@@ -189,7 +189,7 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
         }
 
         // Check if the inner rectangle is completely inside the outer rectangle
-        const auto isRectContains = [](const sf::FloatRect& outer, const sf::FloatRect& inner)
+        const auto doesRectContain = [](const sf::FloatRect& outer, const sf::FloatRect& inner)
         {
             const bool left   = inner.left >= outer.left;
             const bool right  = (inner.left + inner.width) <= (outer.left + outer.width);
@@ -208,7 +208,7 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
 
             // If child is entirely contained within the area, no need to check the boundaries,
             // simply add all of its children recursively.
-            if (isRectContains(area, childrenBounds)) childrenQuadrant->PushChildrenObjects(outOverlappingObjects);
+            if (doesRectContain(area, childrenBounds)) childrenQuadrant->PushChildrenObjects(outOverlappingObjects);
 
             // But if child overlaps with search area, additional checks need to be made.
             else if (childrenBounds.intersects(area))

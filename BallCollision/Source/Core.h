@@ -5,9 +5,6 @@
 #include <cassert>
 #include <memory>
 
-#define _USE_MATH_DEFINES
-#include <cmath>
-
 #define FORCEINLINE __forceinline
 #define NODISCARD [[nodiscard]]
 
@@ -15,6 +12,7 @@
 
 namespace BallCollision
 {
+
 // This one used for collision detection, because in highly dense area, distance between 2 balls may be(almost) zero.
 static constexpr auto s_BC_KINDA_SMALL_NUMBER = 10.E-4f;
 static constexpr float s_PI                   = 3.14159265358979323846f;  // pi

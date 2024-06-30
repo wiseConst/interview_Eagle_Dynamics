@@ -23,6 +23,9 @@
 # Tested platforms
 - Windows
 
+# Small test, 7985 objects. (amd ryzen 7 5800h, rtx 3050ti laptop)
+![Alt text](/Resources/Results.png)
+
 # Clone:
 ```python
 git clone --recursive -b main --single-branch https://github.com/wiseConst/interview_Eagle_Dynamics.git

@@ -36,14 +36,14 @@ void Application::Run()
         fpsCounter.Push(1.0f / (deltaTime));
         lastTime = current_time;
 
-        for (auto& ball : m_Balls)
-            ball.Move(deltaTime);
-
         sf::Clock eventTimer;
         const float treeBuildBegin = eventTimer.restart().asSeconds();
         // 0. Build Quad Tree.
         m_CollisionSystem->BuildAccelerationStructure(m_Balls);
         const float treeBuildEnd = eventTimer.getElapsedTime().asSeconds();
+
+        for (auto& ball : m_Balls)
+            ball.Move(deltaTime);
 
         const float collisionSolvingBegin = eventTimer.restart().asSeconds();
         // 1. Solve screen bounds.
@@ -104,8 +104,9 @@ void Application::DrawBall(const Ball& ball)
 
 void Application::DrawTimers(const float fps, const float treeBuildTime, const float collisionSolvingTime)
 {
-    const auto formattedTitle = std::format("{} FPS: {:.2f}, QuadTree Build Time: {:.9f} seconds, Collision Solve Time: {:.9f} seconds",
-                                            m_AppName, fps, treeBuildTime, collisionSolvingTime);
+    const auto formattedTitle =
+        std::format("{}, Objects: {}, FPS: {:.2f}, QuadTree Build Time: {:.9f} seconds, Collision Solve Time: {:.9f} seconds", m_AppName,
+                    m_Balls.size(), fps, treeBuildTime, collisionSolvingTime);
     m_Window.setTitle(formattedTitle);
 }
 
@@ -125,7 +126,7 @@ void Application::GenerateBalls()
 
         sf::Vector2f direction = sf::Vector2f{(-5 + distribution(generator) * 10) / 3.f,  //
                                               (-5 + distribution(generator) * 10) / 3.f};
-        const float magnitude  = std::sqrt(DotProduct(direction, direction)) + s_BC_KINDA_SMALL_NUMBER;
+        const float magnitude  = std::sqrt(DotProduct(direction, direction));
         direction /= magnitude;
 
         const float speed  = 30 + distribution(generator) % 30;

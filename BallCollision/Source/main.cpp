@@ -1,7 +1,7 @@
 #include "Application.h"
 
 static constexpr uint32_t s_MinBallCount = 300;
-static constexpr uint32_t s_MaxBallCount = 500;
+static constexpr uint32_t s_MaxBallCount = 900;
 
 int32_t main()
 {
@@ -10,7 +10,7 @@ int32_t main()
 
     ballCollisionDemo->SetMinBallCount(s_MinBallCount);
     ballCollisionDemo->SetMaxBallCount(s_MaxBallCount);
-    // ballCollisionDemo->SetDrawCollisionTree(true);
+    ballCollisionDemo->SetDrawCollisionTree(true);
 
     ballCollisionDemo->Run();
 
