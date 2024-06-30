@@ -1,18 +1,20 @@
 #pragma once
 
-#include "Ball.h"
 #include "Core.h"
+#include "Ball.h"
 
+#include <array>
 #include <vector>
 #include <memory>
 
-// NOTE: Testing
+// NOTE: Only for drawing debug colliders.
 #include <SFML/Graphics.hpp>
 
 namespace BallCollision
 {
 
-class QuadTree final
+// Max number of values a node can contain before we try to split it.
+template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThreshold = std::size_t(16)> class QuadTree final
 {
   private:
     enum ESubdivisionType : uint8_t
@@ -31,37 +33,27 @@ class QuadTree final
     }
     ~QuadTree() = default;
 
-    void Clear()
-    {
-        m_Objects.clear();
-
-        for (uint32_t i{}; i < 4; ++i)
-        {
-            if (!m_Nodes[i]) continue;
-
-            m_Nodes[i]->Clear();
-            m_Nodes[i].reset();
-        }
-    }
+    NODISCARD FORCEINLINE const sf::FloatRect& GetBounds() const { return m_Bounds; }
 
     void Insert(Ball* ball)
     {
         assert(ball);
 
+        // Firstly try to place in children quadrants
         const auto bIsLeaf = IsLeaf();
         if (!bIsLeaf)
         {
             const auto quadrantIndex = GetQuadrantIndex(ball->m_Bounds);
             if (quadrantIndex != ESubdivisionType::SUBDIVISON_TYPE_NONE)
             {
-                m_Nodes[quadrantIndex]->Insert(ball);
+                m_Nodes.at(quadrantIndex)->Insert(ball);
                 return;
             }
         }
 
-        m_Objects.emplace_back(ball);
         // NOTE: Split in case threshold reached, doesn't have children(so we can spawn them), and check depth level threshold.
-        if (bIsLeaf && m_Objects.size() + 1 >= s_ObjectThreshold && m_Level < s_DepthThreshold)
+        m_Objects.emplace_back(ball);
+        if (bIsLeaf && m_Objects.size() + 1 >= ObjectThreshold && m_Level < DepthThreshold)
         {
             Subdivide();
 
@@ -74,7 +66,7 @@ class QuadTree final
                 const auto quadrantIndex = GetQuadrantIndex(ball->m_Bounds);
                 if (quadrantIndex != ESubdivisionType::SUBDIVISON_TYPE_NONE)
                 {
-                    m_Nodes[quadrantIndex]->Insert(ball);
+                    m_Nodes.at(quadrantIndex)->Insert(ball);
                     objIterator = m_Objects.erase(objIterator);
                 }
                 else
@@ -85,44 +77,81 @@ class QuadTree final
         }
     }
 
+    void Clear()
+    {
+        m_Objects.clear();
+
+        for (uint32_t i{}; i < m_Nodes.size(); ++i)
+        {
+            if (!m_Nodes.at(i)) continue;
+
+            m_Nodes.at(i)->Clear();
+            m_Nodes.at(i).reset();
+        }
+    }
+
     NODISCARD std::vector<Ball*> QueryCollisions(const sf::FloatRect& area)
     {
-        std::vector<Ball*> possibleOverlaps = {};
-        QueryCollisionsInternal(possibleOverlaps, area);
+        std::vector<Ball*> overlappedObjects = {};
+        QueryCollisionsInternal(overlappedObjects, area);
 
-        std::vector<Ball*> actualOverlaps;
-        for (auto ball : possibleOverlaps)
-        {
-            if (!ball || !area.intersects(ball->m_Bounds)) continue;
-
-            actualOverlaps.emplace_back(ball);
-        }
-
-        return actualOverlaps;
+        return overlappedObjects;
     }
 
-    void QueryCollisionsInternal(std::vector<Ball*>& outOverlappingObjects, const sf::FloatRect& area)
+    void Show(sf::RenderWindow& window) const
     {
-        outOverlappingObjects.insert(outOverlappingObjects.end(), m_Objects.begin(), m_Objects.end());
+        sf::RectangleShape rect{};
+        rect.setOutlineThickness(m_Level * 0.75f);
+        rect.setOutlineColor(sf::Color::Green);
+        rect.setFillColor(sf::Color::Transparent);
+        rect.setPosition(m_Bounds.left, m_Bounds.top);
+        rect.setSize(sf::Vector2f(m_Bounds.width, m_Bounds.height));
+        window.draw(rect);
+
         if (IsLeaf()) return;
 
-        const auto quadrantIndex = GetQuadrantIndex(area);
-        if (quadrantIndex == ESubdivisionType::SUBDIVISON_TYPE_NONE)
+        for (uint32_t i{}; i < 4; ++i)
         {
-            for (uint32_t i{}; i < 4; ++i)
-            {
-                if (!m_Nodes[i]->GetBounds().intersects(area)) continue;
+            if (!m_Nodes.at(i)) continue;
 
-                m_Nodes[i]->QueryCollisionsInternal(outOverlappingObjects, area);
-            }
-        }
-        else
-        {
-            m_Nodes[quadrantIndex]->QueryCollisionsInternal(outOverlappingObjects, area);
+            m_Nodes.at(i)->Show(window);
         }
     }
 
-    ESubdivisionType GetQuadrantIndex(const sf::FloatRect& objectBounds)
+  private:
+    sf::FloatRect m_Bounds = {};
+
+    // nullptr if this is the base node.
+    QuadTree* m_ParentNode = nullptr;
+    std::array<std::unique_ptr<QuadTree>, 4> m_Nodes;
+    std::vector<Ball*> m_Objects;
+
+    // How deep the current node is from the base node.
+    // The first node starts at 0 and then its child node
+    // is at level 1 and so on until depth treshold.
+    uint32_t m_Level = {};
+
+    FORCEINLINE bool IsLeaf() const { return m_Nodes.at(0) == nullptr; }
+
+    void Subdivide()
+    {
+        const auto childWidth  = m_Bounds.width / 2;
+        const auto childHeight = m_Bounds.height / 2;
+
+        const auto nwBounds                                   = sf::FloatRect(m_Bounds.left, m_Bounds.top, childWidth, childHeight);
+        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_NORTH_WEST] = std::make_unique<QuadTree>(m_Level + 1, nwBounds, this);
+
+        const auto neBounds = sf::FloatRect(m_Bounds.left + childWidth, m_Bounds.top, childWidth, childHeight);
+        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_NORTH_EAST] = std::make_unique<QuadTree>(m_Level + 1, neBounds, this);
+
+        const auto seBounds = sf::FloatRect(m_Bounds.left + childWidth, m_Bounds.top + childHeight, childWidth, childHeight);
+        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_SOUTH_EAST] = std::make_unique<QuadTree>(m_Level + 1, seBounds, this);
+
+        const auto swBounds = sf::FloatRect(m_Bounds.left, m_Bounds.top + childHeight, childWidth, childHeight);
+        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_SOUTH_WEST] = std::make_unique<QuadTree>(m_Level + 1, swBounds, this);
+    }
+
+    ESubdivisionType GetQuadrantIndex(const sf::FloatRect& objectBounds) const
     {
         const float verticalDividingLine   = m_Bounds.left + m_Bounds.width * 0.5f;
         const float horizontalDividingLine = m_Bounds.top + m_Bounds.height * 0.5f;
@@ -149,63 +178,55 @@ class QuadTree final
         return ESubdivisionType::SUBDIVISON_TYPE_NONE;
     }
 
-    void Show(sf::RenderWindow& window)
+    void QueryCollisionsInternal(std::vector<Ball*>& outOverlappingObjects, const sf::FloatRect& area)
     {
-        sf::RectangleShape rect{};
-        rect.setOutlineThickness(m_Level + .1f);
-        rect.setFillColor(sf::Color::Transparent);
-        // rect.setFillColor(sf::Color(0, 123, 179, 55));
-        rect.setPosition(m_Bounds.left /*+ m_Bounds.width * .5f*/, m_Bounds.top /*+ m_Bounds.height * .5f*/);
-        rect.setSize(sf::Vector2f(m_Bounds.width /* * .5f*/, m_Bounds.height /** .5f*/));
-        window.draw(rect);
-
-        if (IsLeaf()) return;
-
-        for (uint32_t i{}; i < 4; ++i)
+        // 1. Add items from current quadrant if they do overlap.
+        for (Ball* ball : m_Objects)
         {
-            if (!m_Nodes[i]) continue;
+            if (!ball || !area.intersects(ball->m_Bounds)) continue;
 
-            m_Nodes[i]->Show(window);
+            outOverlappingObjects.emplace_back(ball);
+        }
+
+        // Check if the inner rectangle is completely inside the outer rectangle
+        const auto isRectContains = [](const sf::FloatRect& outer, const sf::FloatRect& inner)
+        {
+            const bool left   = inner.left >= outer.left;
+            const bool right  = (inner.left + inner.width) <= (outer.left + outer.width);
+            const bool top    = inner.top >= outer.top;
+            const bool bottom = (inner.top + inner.height) <= (outer.top + outer.height);
+
+            return left && right && top && bottom;
+        };
+
+        // 2. Check children quadrants.
+        for (auto& childrenQuadrant : m_Nodes)
+        {
+            if (!childrenQuadrant) continue;
+
+            const auto& childrenBounds = childrenQuadrant->GetBounds();
+
+            // If child is entirely contained within the area, no need to check the boundaries,
+            // simply add all of its children recursively.
+            if (isRectContains(area, childrenBounds)) childrenQuadrant->PushChildrenObjects(outOverlappingObjects);
+
+            // But if child overlaps with search area, additional checks need to be made.
+            else if (childrenBounds.intersects(area))
+                childrenQuadrant->QueryCollisionsInternal(outOverlappingObjects, area);
         }
     }
 
-    NODISCARD FORCEINLINE const auto& GetBounds() const { return m_Bounds; }
-
-  private:
-    sf::FloatRect m_Bounds = {};
-
-    static constexpr auto s_ObjectThreshold = std::size_t(16);  // Max number of values a node can contain before we try to split it.
-    static constexpr auto s_DepthThreshold  = std::size_t(8);
-
-    // nullptr if this is the base node.
-    QuadTree* m_ParentNode = nullptr;
-    std::unique_ptr<QuadTree> m_Nodes[4];
-
-    std::vector<Ball*> m_Objects;
-
-    // How deep the current node is from the base node.
-    // The first node starts at 0 and then its child node
-    // is at level 1 and so on.
-    uint32_t m_Level = {};
-
-    FORCEINLINE bool IsLeaf() const { return m_Nodes[0] == nullptr; }
-
-    void Subdivide()
+    void PushChildrenObjects(std::vector<Ball*>& outOverlappingObjects)
     {
-        const auto childWidth  = m_Bounds.width / 2;
-        const auto childHeight = m_Bounds.height / 2;
+        for (Ball* ball : m_Objects)
+        {
+            if (ball) outOverlappingObjects.emplace_back(ball);
+        }
 
-        const auto nwBounds                                   = sf::FloatRect(m_Bounds.left, m_Bounds.top, childWidth, childHeight);
-        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_NORTH_WEST] = std::make_unique<QuadTree>(m_Level + 1, nwBounds, this);
-
-        const auto neBounds = sf::FloatRect(m_Bounds.left + childWidth, m_Bounds.top, childWidth, childHeight);
-        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_NORTH_EAST] = std::make_unique<QuadTree>(m_Level + 1, neBounds, this);
-
-        const auto seBounds = sf::FloatRect(m_Bounds.left + childWidth, m_Bounds.top + childHeight, childWidth, childHeight);
-        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_SOUTH_EAST] = std::make_unique<QuadTree>(m_Level + 1, seBounds, this);
-
-        const auto swBounds = sf::FloatRect(m_Bounds.left, m_Bounds.top + childHeight, childWidth, childHeight);
-        m_Nodes[ESubdivisionType::SUBDIVISON_TYPE_SOUTH_WEST] = std::make_unique<QuadTree>(m_Level + 1, swBounds, this);
+        for (auto& childrenQuadrant : m_Nodes)
+        {
+            if (childrenQuadrant) childrenQuadrant->PushChildrenObjects(outOverlappingObjects);
+        }
     }
 };
 

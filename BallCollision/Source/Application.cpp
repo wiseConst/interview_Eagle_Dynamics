@@ -10,9 +10,12 @@ namespace BallCollision
 
 Application::Application(const std::string_view appName, const uint32_t windowSizeX, const uint32_t windowSizeY)
     : m_Window(sf::RenderWindow(sf::VideoMode(windowSizeX, windowSizeY), appName.data())), m_WindowSizeX(windowSizeX),
-      m_WindowSizeY(windowSizeY)
+      m_WindowSizeY(windowSizeY), m_AppName(appName)
 {
     assert(!appName.empty());
+
+    m_CollisionSystem =
+        std::make_unique<CollisionSystem>(sf::Vector2f{static_cast<float>(m_WindowSizeX), static_cast<float>(m_WindowSizeY)});
 }
 
 void Application::Run()
@@ -20,7 +23,7 @@ void Application::Run()
     GenerateBalls();
 
     sf::Clock clock;
-    float lastime = clock.restart().asSeconds();
+    float lastTime = clock.restart().asSeconds();
 
     Math::MiddleAverageFilter<float, 100> fpsCounter = {};
     while (m_Window.isOpen())
@@ -28,32 +31,37 @@ void Application::Run()
         PollInput();
 
         const float current_time = clock.getElapsedTime().asSeconds();
-        const float deltaTime    = current_time - lastime;
+        const float deltaTime    = current_time - lastTime;
 
         fpsCounter.Push(1.0f / (deltaTime));
-        lastime = current_time;
-
-        // TODO: PLACE COLLISION CODE HERE
-        // Объекты создаются в случайном месте на плоскости со случайным вектором скорости, имеют радиус R
-        // Объекты движутся кинетически. Пространство ограниченно границами окна
-        // Напишите обработчик столкновений шаров между собой и краями окна. Как это сделать эффективно?
-        // Массы пропорцианальны площадям кругов, описывающих объекты
-        // Как можно было-бы улучшить текущую архитектуру кода?
-        // Данный код является макетом, вы можете его модифицировать по своему усмотрению
+        lastTime = current_time;
 
         for (auto& ball : m_Balls)
-            MoveBall(ball, deltaTime);
+            ball.Move(deltaTime);
 
-        auto quadTree = BuildQuadTree();
-        HandleCollision(deltaTime);
+        sf::Clock eventTimer;
+        const float treeBuildBegin = eventTimer.restart().asSeconds();
+        // 0. Build Quad Tree.
+        m_CollisionSystem->BuildAccelerationStructure(m_Balls);
+        const float treeBuildEnd = eventTimer.getElapsedTime().asSeconds();
+
+        const float collisionSolvingBegin = eventTimer.restart().asSeconds();
+        // 1. Solve screen bounds.
+        m_CollisionSystem->SolveScreenBoundsCollision(m_Balls);
+
+        // 2. Resolve static collisions, so one ball can't exist inside the other.
+        m_CollisionSystem->SolveStaticCollisions(m_Balls);
+
+        // 3. Solve an actual dynamic perfectly elastic collisions.
+        m_CollisionSystem->SolveDynamicCollisions();
+        const float collisionSolvingEnd = eventTimer.getElapsedTime().asSeconds();
 
         m_Window.clear();
         for (const auto& ball : m_Balls)
             DrawBall(ball);
 
-        DrawFps(fpsCounter.CalculateAverage());
-
-        quadTree->Show(m_Window);
+        DrawTimers(fpsCounter.CalculateAverage(), treeBuildEnd - treeBuildBegin, collisionSolvingEnd - collisionSolvingBegin);
+        if (m_bDrawCollisionTree) m_CollisionSystem->DrawDebugColliders(m_Window);
 
         m_Window.display();
     }
@@ -78,6 +86,8 @@ void Application::PollInput()
                 // Handle window resize(to remove "stretched" ball shapes)
                 sf::FloatRect visibleArea(0.f, 0.f, static_cast<float>(event.size.width), static_cast<float>(event.size.height));
                 m_Window.setView(sf::View(visibleArea));
+
+                m_CollisionSystem->ResizeCollisionTree(sf::Vector2f{visibleArea.width, visibleArea.height});
             }
         }
     }
@@ -88,66 +98,14 @@ void Application::DrawBall(const Ball& ball)
     sf::CircleShape cirle(ball.m_Radius);
     cirle.setPosition(ball.m_Position);
     cirle.setOrigin({ball.m_Radius, ball.m_Radius});
-    //  cirle.setFillColor()
 
     m_Window.draw(cirle);
 }
 
-void Application::MoveBall(Ball& ball, const float deltaTime)
+void Application::DrawTimers(const float fps, const float treeBuildTime, const float collisionSolvingTime)
 {
-    const float dX = ball.m_Direction.x * ball.m_Speed * deltaTime;
-    ball.m_Position.x += dX;
-
-    const float dY = ball.m_Direction.y * ball.m_Speed * deltaTime;
-    ball.m_Position.y += dY;
-
-    ball.UpdateBounds();
-}
-
-void Application::HandleCollision(const float deltaTime)
-{
-    const auto windowSizeX = static_cast<float>(m_WindowSizeX);
-    const auto windowSizeY = static_cast<float>(m_WindowSizeY);
-    for (size_t i{}; i < m_Balls.size(); ++i)
-    {
-        auto& first = m_Balls.at(i);
-
-        for (size_t k{}; k < m_Balls.size(); ++k)
-        {
-            // Self-collision skip.
-            if (i == k) continue;
-
-            auto& second               = m_Balls.at(k);
-            const auto collisionResult = first.IsColliding(second);
-            if (!collisionResult.has_value()) continue;
-
-            const auto& normal = collisionResult.value().m_Normal;
-            const auto force   = collisionResult.value().m_Force;
-
-            first.m_Direction  = -normal;
-            second.m_Direction = normal;
-
-            first.m_Position += -normal * second.m_Mass * force / 2.f * deltaTime;
-            second.m_Position += normal * first.m_Mass * force / 2.f * deltaTime;
-        }
-
-        if (first.m_Position.x - first.m_Radius <= 0.f || first.m_Position.x + first.m_Radius >= windowSizeX)
-        {
-            first.m_Direction.x = -first.m_Direction.x;
-            first.m_Position.x  = std::max(first.m_Radius, std::min(first.m_Position.x, windowSizeX - first.m_Radius));
-        }
-
-        if (first.m_Position.y - first.m_Radius <= 0.f || first.m_Position.y + first.m_Radius >= windowSizeY)
-        {
-            first.m_Direction.y = -first.m_Direction.y;
-            first.m_Position.y  = std::max(first.m_Radius, std::min(first.m_Position.y, windowSizeY - first.m_Radius));
-        }
-    }
-}
-
-void Application::DrawFps(const float fps)
-{
-    const auto formattedTitle = std::format("FPS: {:.2f}", fps);
+    const auto formattedTitle = std::format("{} FPS: {:.2f}, QuadTree Build Time: {:.9f} seconds, Collision Solve Time: {:.9f} seconds",
+                                            m_AppName, fps, treeBuildTime, collisionSolvingTime);
     m_Window.setTitle(formattedTitle);
 }
 
@@ -165,32 +123,23 @@ void Application::GenerateBalls()
         const auto position = sf::Vector2f{static_cast<float>(distribution(generator) % m_WindowSizeX),  //
                                            static_cast<float>(distribution(generator) % m_WindowSizeY)};
 
-        const auto direction = Normalize(sf::Vector2f{(-5 + (distribution(generator) % 10)) / 3.f,  //
-                                                      (-5 + (distribution(generator) % 10)) / 3.f});
+        sf::Vector2f direction = sf::Vector2f{(-5 + distribution(generator) * 10) / 3.f,  //
+                                              (-5 + distribution(generator) * 10) / 3.f};
+        const float magnitude  = std::sqrt(DotProduct(direction, direction)) + s_BC_KINDA_SMALL_NUMBER;
+        direction /= magnitude;
 
-        const float radius = static_cast<float>(10 + distribution(generator) % 5);
-        const float speed  = static_cast<float>(30 + distribution(generator) % 30);
-        m_Balls.emplace_back(position, direction, radius, speed);
+        const float speed  = 30 + distribution(generator) % 30;
+        const float radius = 10 + distribution(generator) % 5;
+
+        const sf::Vector2f velocity = direction * speed;
+        m_Balls.emplace_back(position, velocity, radius);
     }
 }
 
 void Application::Shutdown()
 {
-    m_Window.close();
     m_Balls.clear();
-    m_QuadTree->Clear();
-}
-
-std::unique_ptr<QuadTree> Application::BuildQuadTree()
-{
-    const auto windowSizeX         = static_cast<float>(m_WindowSizeX);
-    const auto windowSizeY         = static_cast<float>(m_WindowSizeY);
-    std::unique_ptr<QuadTree> root = std::make_unique<QuadTree>(0, sf::FloatRect{{0, 0}, {windowSizeX, windowSizeY}}, nullptr);
-
-    for (auto& ball : m_Balls)
-        root->Insert(&ball);
-
-    return root;
+    m_CollisionSystem.reset();
 }
 
 }  // namespace BallCollision
