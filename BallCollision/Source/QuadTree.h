@@ -81,12 +81,12 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
     {
         m_Objects.clear();
 
-        for (uint32_t i{}; i < m_Nodes.size(); ++i)
+        for (auto& child : m_Nodes)
         {
-            if (!m_Nodes.at(i)) continue;
+            if (!child) continue;
 
-            m_Nodes.at(i)->Clear();
-            m_Nodes.at(i).reset();
+            child->Clear();
+            child.reset();
         }
     }
 
@@ -108,13 +108,11 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
         rect.setSize(sf::Vector2f(m_Bounds.width, m_Bounds.height));
         window.draw(rect);
 
-        if (IsLeaf()) return;
-
-        for (uint32_t i{}; i < 4; ++i)
+        for (auto& child : m_Nodes)
         {
-            if (!m_Nodes.at(i)) continue;
+            if (!child) continue;
 
-            m_Nodes.at(i)->Show(window);
+            child->Show(window);
         }
     }
 

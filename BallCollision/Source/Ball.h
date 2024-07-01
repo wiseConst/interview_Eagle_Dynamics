@@ -23,7 +23,7 @@ struct Ball
     Ball()  = default;
     ~Ball() = default;
 
-    void UpdateBounds() { m_Bounds = {m_Position.x, m_Position.y, m_Radius, m_Radius}; }
+    void UpdateBounds() { m_Bounds = {m_Position.x - m_Radius, m_Position.y - m_Radius, m_Radius * 2.f, m_Radius * 2.f}; }
 
     void Move(const float deltaTime)
     {

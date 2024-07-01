@@ -36,14 +36,14 @@ void Application::Run()
         fpsCounter.Push(1.0f / (deltaTime));
         lastTime = current_time;
 
+        for (auto& ball : m_Balls)
+            ball.Move(deltaTime);
+
         sf::Clock eventTimer;
         const float treeBuildBegin = eventTimer.restart().asSeconds();
         // Build Quad Tree.
         m_CollisionSystem->BuildAccelerationStructure(m_Balls);
         const float treeBuildEnd = eventTimer.getElapsedTime().asSeconds();
-
-        for (auto& ball : m_Balls)
-            ball.Move(deltaTime);
 
         const float collisionSolvingBegin = eventTimer.restart().asSeconds();
         m_CollisionSystem->SolveCollisions(m_Balls);
@@ -91,6 +91,17 @@ void Application::DrawBall(const Ball& ball)
     sf::CircleShape cirle(ball.m_Radius);
     cirle.setPosition(ball.m_Position);
     cirle.setOrigin({ball.m_Radius, ball.m_Radius});
+
+    // Debugging AABB.
+#if 0
+    sf::RectangleShape rect;
+    rect.setOutlineThickness(2);
+    rect.setOutlineColor(sf::Color::Blue);
+    rect.setFillColor(sf::Color::Transparent);
+    rect.setPosition(ball.m_Bounds.left, ball.m_Bounds.top);
+    rect.setSize(sf::Vector2f(ball.m_Bounds.width, ball.m_Bounds.height));
+    m_Window.draw(rect);
+#endif
 
     m_Window.draw(cirle);
 }
