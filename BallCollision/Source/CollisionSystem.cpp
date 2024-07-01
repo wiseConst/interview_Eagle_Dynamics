@@ -43,13 +43,13 @@ void CollisionSystem::SolveCollisions(std::vector<Ball>& balls)
             const auto overlapLength = collisionResult.value().m_OverlapLength;
 
             ball.m_Position -= normal * overlapLength;
-            ball.UpdateBounds();
 
             otherBall->m_Position += normal * overlapLength;
             otherBall->UpdateBounds();
 
             collidingBalls.emplace_back(&ball, otherBall);
         }
+        ball.UpdateBounds();
 
         // 2. Solve screen bounds.
         if (ball.m_Position.x - ball.m_Radius <= 0.f || ball.m_Position.x + ball.m_Radius >= m_CollisionTree->GetBounds().width)
@@ -74,9 +74,9 @@ void CollisionSystem::SolveCollisions(std::vector<Ball>& balls)
     {
         if (!ball || !target || ball == target) continue;
 
-        const float distance = std::sqrt((ball->m_Position.x - target->m_Position.x) * (ball->m_Position.x - target->m_Position.x) +
-                                         (ball->m_Position.y - target->m_Position.y) * (ball->m_Position.y - target->m_Position.y)) +
-                               s_BC_KINDA_SMALL_NUMBER;
+        float distance = std::sqrt((ball->m_Position.x - target->m_Position.x) * (ball->m_Position.x - target->m_Position.x) +
+                                   (ball->m_Position.y - target->m_Position.y) * (ball->m_Position.y - target->m_Position.y));
+        if (distance == 0.0f) distance = s_BC_KINDA_SMALL_NUMBER;
 
         const sf::Vector2f normal = (ball->m_Position - target->m_Position) / distance;
         const sf::Vector2f tangent{-normal.y, normal.x};
@@ -109,7 +109,9 @@ std::optional<CollisionResult> CollisionSystem::AreBallsColliding(const Ball& lh
     const float radiusSum = lhs.m_Radius + rhs.m_Radius;
     if (distance2 > radiusSum * radiusSum) return std::nullopt;
 
-    const float distance      = std::sqrt(distance2) + s_BC_KINDA_SMALL_NUMBER;
+    float distance = std::sqrt(distance2);
+    if (distance == 0.0f) distance = s_BC_KINDA_SMALL_NUMBER;
+
     const sf::Vector2f normal = distanceVec / distance;
     const float overlapLength = 0.5f * (distance - radiusSum);
     return std::make_optional<CollisionResult>(normal, overlapLength);
