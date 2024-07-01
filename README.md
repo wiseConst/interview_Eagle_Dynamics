@@ -23,8 +23,9 @@
 # Tested platforms
 - Windows
 
-# Small test, 7985 objects. (amd ryzen 7 5800h, rtx 3050ti laptop)
-![Alt text](/Resources/Results.png)
+# Small test, 9999 balls. AMD Ryzen 7 5800H, RTX 3050 Ti Laptop. As you can see in the window, QuadTree implementation is 4 times faster than Naive. First is naive, second is QuadTree + visualization.
+![Alt text](/Resources/9999_objects_naive.png)
+![Alt text](/Resources/9999_objects_quad_tree.png)
 
 # Clone:
 ```python

@@ -40,8 +40,9 @@ void Application::Run()
             ball.Move(deltaTime);
 
         sf::Clock eventTimer;
-        const float treeBuildBegin = eventTimer.restart().asSeconds();
+
         // Build Quad Tree.
+        const float treeBuildBegin = eventTimer.restart().asSeconds();
         m_CollisionSystem->BuildAccelerationStructure(m_Balls);
         const float treeBuildEnd = eventTimer.getElapsedTime().asSeconds();
 
