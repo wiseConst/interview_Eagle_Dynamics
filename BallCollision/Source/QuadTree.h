@@ -90,10 +90,10 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
         }
     }
 
-    NODISCARD std::vector<Ball*> QueryCollisions(const sf::FloatRect& area)
+    NODISCARD std::vector<Ball*> QueryPossibleIntersections(const sf::FloatRect& area)
     {
         std::vector<Ball*> overlappedObjects = {};
-        QueryCollisionsInternal(overlappedObjects, area);
+        QueryPossibleIntersectionsInternal(overlappedObjects, area);
 
         return overlappedObjects;
     }
@@ -178,7 +178,7 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
         return ESubdivisionType::SUBDIVISON_TYPE_NONE;
     }
 
-    void QueryCollisionsInternal(std::vector<Ball*>& outOverlappingObjects, const sf::FloatRect& area)
+    void QueryPossibleIntersectionsInternal(std::vector<Ball*>& outOverlappingObjects, const sf::FloatRect& area)
     {
         // 1. Add items from current quadrant if they do overlap.
         for (Ball* ball : m_Objects)
@@ -212,7 +212,7 @@ template <std::size_t DepthThreshold = std::size_t(8), std::size_t ObjectThresho
 
             // But if child overlaps with search area, additional checks need to be made.
             else if (childrenBounds.intersects(area))
-                childrenQuadrant->QueryCollisionsInternal(outOverlappingObjects, area);
+                childrenQuadrant->QueryPossibleIntersectionsInternal(outOverlappingObjects, area);
         }
     }
 

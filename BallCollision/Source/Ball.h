@@ -2,6 +2,8 @@
 
 #include "Core.h"
 
+#include "SFML/Graphics/Rect.hpp"
+
 namespace BallCollision
 {
 

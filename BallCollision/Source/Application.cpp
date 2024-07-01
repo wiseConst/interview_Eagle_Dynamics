@@ -38,7 +38,7 @@ void Application::Run()
 
         sf::Clock eventTimer;
         const float treeBuildBegin = eventTimer.restart().asSeconds();
-        // 0. Build Quad Tree.
+        // Build Quad Tree.
         m_CollisionSystem->BuildAccelerationStructure(m_Balls);
         const float treeBuildEnd = eventTimer.getElapsedTime().asSeconds();
 
@@ -46,14 +46,7 @@ void Application::Run()
             ball.Move(deltaTime);
 
         const float collisionSolvingBegin = eventTimer.restart().asSeconds();
-        // 1. Solve screen bounds.
-        m_CollisionSystem->SolveScreenBoundsCollision(m_Balls);
-
-        // 2. Resolve static collisions, so one ball can't exist inside the other.
-        m_CollisionSystem->SolveStaticCollisions(m_Balls);
-
-        // 3. Solve an actual dynamic perfectly elastic collisions.
-        m_CollisionSystem->SolveDynamicCollisions();
+        m_CollisionSystem->SolveCollisions(m_Balls);
         const float collisionSolvingEnd = eventTimer.getElapsedTime().asSeconds();
 
         m_Window.clear();

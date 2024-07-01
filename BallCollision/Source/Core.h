@@ -3,12 +3,11 @@
 #include <cstdint>
 #include <optional>
 #include <cassert>
-#include <memory>
+
+#include "SFML/System/Vector2.hpp"
 
 #define FORCEINLINE __forceinline
 #define NODISCARD [[nodiscard]]
-
-#include "SFML/System/Vector2.hpp"
 
 namespace BallCollision
 {
