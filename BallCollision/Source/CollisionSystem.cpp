@@ -107,7 +107,7 @@ std::optional<CollisionResult> CollisionSystem::AreBallsColliding(const Ball& lh
 
     // Spheres intersect if squared distance is less than squared sum of radii
     const float radiusSum = lhs.m_Radius + rhs.m_Radius;
-    if (distance2 > radiusSum * radiusSum) return std::nullopt;
+    if (distance2 >= radiusSum * radiusSum) return std::nullopt;
 
     float distance = std::sqrt(distance2);
     if (distance == 0.0f) distance = s_BC_KINDA_SMALL_NUMBER;
